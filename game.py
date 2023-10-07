@@ -1,12 +1,18 @@
 import pygame
+import pygame.gfxdraw
 import os
+import random
+import time
 
 class Window:
-    def __init__(self,h,w,bgColor=(0,0,0)) -> None:
+    def __init__(self,w,h,bgColor=(0,0,0)) -> None:
         self._height = h
         self._width = w
         self.bgColor = bgColor
-        self._window = pygame.display.set_mode((h,w))
+        self._window = pygame.display.set_mode((w,h))
+    
+    def update(self):
+        pygame.display.update()
     
     def setBG(self, color):
         self.bgColor = color
@@ -18,9 +24,12 @@ class Window:
     
     def drawImage(self, image, x, y):
         self._window.blit(image, (x,y))
-        pygame.display.update()
+    
+    def drawPolygon(self, texture, points):
+        pygame.gfxdraw.textured_polygon(self._window, points, texture,0,0)
+        # pygame.draw.polygon(self._window, 'lightblue', points)
         
-class Player():
+class Player:
     def __init__(self, h, w, speed, sprite) -> None:
         self._height = h
         self._width = w
@@ -29,7 +38,7 @@ class Player():
         self._body = pygame.transform.scale(img, (self._height, self._width))
         self.posX = 0
         self.posY = 0
-    
+
     def move(self, dir):
         if dir == 'up':
             self.posY -= self.speed
@@ -44,6 +53,17 @@ class Player():
         self.posX = x
         self.posY = y
 
+class Obstacle:
+    def __init__(self, w, yTop, yBot, speed, texture) -> None:
+        self._width = w
+        self._top = yTop
+        self._bottom = yBot
+        self.speed = speed
+        self._texture = pygame.image.load(os.path.join("Assets",texture))
+
+    def move(self):
+        self._top = (self._top[0]-self.speed, self._top[1])
+        self._bottom = (self._bottom[0]-self.speed, self._bottom[1])
 
 class Engine:
     def __init__(self, window, player, fps=60) -> None:
@@ -52,9 +72,38 @@ class Engine:
         self._clock = pygame.time.Clock()
         self._state = "game"
         self._player = player
+        self._obstacles = []
 
     def drawPlayer(self):
         self.window.drawImage(self._player._body, self._player.posX, self._player.posY)
+    
+    def makeObstacle(self):
+        xTop = random.randint(self.window._width, self.window._width + 200)
+        yTop = random.randint(0, self.window._height)
+        xBot = random.randint(self.window._width, self.window._width + 200)
+        yBot = random.randint(0, self.window._height)
+
+        if abs(yTop-yBot) <= 50:
+             yTop,yBot = min(yTop,yBot)-25, max(yTop, yBot)+25
+        if yTop <= self._player._height + 5 and yBot >= self.window._height - 5 - self._player._height:
+            yTop = self._player._height + 5
+        if random.randint(0,1):
+            xTop = self.window._width -1
+        else:
+            xBot = self.window._width -1
+            
+        self._obstacles.append(Obstacle(15, (xTop, yTop), (xBot,yBot), 5, "laserTexture.png"))
+    
+    def destroyObstacle(self, obs):
+        self._obstacles.remove(obs)
+    
+    def drawObstacle(self, obs):
+        # obs = self.makeObstacle()
+        coords = [obs._top, (obs._top[0]+obs._width, obs._top[1]), (obs._bottom[0]+obs._width, obs._bottom[1]), obs._bottom]
+        try:
+            self.window.drawPolygon(obs._texture, coords)
+        except pygame.error:
+            self.destroyObstacle(obs)
     
     def playerMovement(self):
         pressed_keys = pygame.key.get_pressed()
@@ -68,8 +117,12 @@ class Engine:
             self._player.move('right')
 
     def runGame(self):
+        timer = time.time()
+        obsCd = timer
+        nextObs = 3
         while self._state == "game":
             self._clock.tick(self._fps)
+            timer = time.time()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -77,14 +130,26 @@ class Engine:
             # self.window.setBG((255,0,0))
             self.window.clear()
             self.playerMovement()
+
+            if timer-obsCd >= nextObs:
+                obsCd = timer
+                nextObs = 1 + random.random()*2
+                self.makeObstacle()
+
+            for obstacle in self._obstacles:
+                obstacle.move()
+                self.drawObstacle(obstacle)
+
             self.drawPlayer()
+            self.window.update()
 
         pygame.quit()
 
 
+# Driver code
 
 def main():
-    window = Window(500,500)
+    window = Window(1000,500)
     player = Player(140,60,5,"crab.png")
     game = Engine(window, player)
     game.runGame()
