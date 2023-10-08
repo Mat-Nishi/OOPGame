@@ -43,12 +43,10 @@ class Player:
 
     def move(self, dir):
         if dir == 'up':
-            print(self.speed)
             if self.speed > -self._maxSpeed:
                 self.speed -= self._gravity
             self.posY += self.speed
         elif dir == 'down':
-            print(self.speed, self._gravity)
             if self.speed < self._maxSpeed:
                 self.speed += self._gravity
             self.posY += self.speed
@@ -114,12 +112,29 @@ class Engine:
             self.destroyObstacle(obs)
     
     def checkCollision(self):
+        def ccw(A,B,C):
+            return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
+        def intersect(A,B,C,D):
+            return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D)
+
         if self._player.posY + self._player._height >= self.window._height:
             self._player.speed = 0
             self._player.posY = self.window._height - self._player._height
         elif self._player.posY <= 0:
             self._player.speed = 0
             self._player.posY = 0
+        
+        playerCorners = [(self._player.posX, self._player.posY),
+                         (self._player.posX+self._player._width, self._player.posY),
+                         (self._player.posX, self._player.posY+self._player._height),
+                         (self._player.posX+self._player._width, self._player.posY+self._player._height)]
+        
+        for obstacle in self._obstacles:
+            for i in range(4):
+                for j in range(i,4):
+                    if intersect(playerCorners[i], playerCorners[j], obstacle._top, obstacle._bottom):
+                        pygame.quit()
+                        return
     
     def playerMovement(self):
         pressed_keys = pygame.key.get_pressed()
