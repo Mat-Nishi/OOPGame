@@ -13,7 +13,7 @@ class Window:
     
     def update(self):
         pygame.display.update()
-    
+
     def setBG(self, color):
         self.bgColor = color
         self._window.fill(color)
@@ -28,6 +28,25 @@ class Window:
     def drawPolygon(self, texture, points):
         pygame.gfxdraw.textured_polygon(self._window, points, texture,0,0)
         # pygame.draw.polygon(self._window, 'lightblue', points)
+    
+    def drawText(self, txt, x=None , y=None, offsetX=0,offsetY=0, center=True):
+        if x is None:
+            x = self._width // 2
+        if y is None:
+            y = self._height // 2
+
+        font = pygame.font.Font('freesansbold.ttf', 32)
+        text = font.render(txt, True, 'white', 'black')
+        textRect = text.get_rect()
+        if center:
+            textRect.center = (x+offsetX, y+offsetY)
+        else:
+            textRect.x = x+offsetX
+            textRect.y = y+offsetY
+        # self._window.fill('black')
+        self._window.blit(text, textRect)
+ 
+
         
 class Player:
     def __init__(self, w, h, speed, sprite, gravity=0.4) -> None:
@@ -36,7 +55,7 @@ class Player:
         self.speed = 0
         self._maxSpeed = speed
         self._gravity = gravity
-        img = pygame.image.load(os.path.join("Assets",sprite))
+        img = pygame.image.load(os.path.join("Assets",sprite)).convert_alpha()
         self._body = pygame.transform.scale(img, (self._width, self._height))
         self.posX = 0
         self.posY = 0
@@ -60,16 +79,15 @@ class Player:
         self.posY = y
 
 class Obstacle:
-    def __init__(self, w, yTop, yBot, speed, texture) -> None:
+    def __init__(self, w, yTop, yBot, texture) -> None:
         self._width = w
         self._top = yTop
         self._bottom = yBot
-        self.speed = speed
-        self._texture = pygame.image.load(os.path.join("Assets",texture))
+        self._texture = pygame.image.load(os.path.join("Assets",texture)).convert_alpha()
 
-    def move(self):
-        self._top = (self._top[0]-self.speed, self._top[1])
-        self._bottom = (self._bottom[0]-self.speed, self._bottom[1])
+    def move(self, speed):
+        self._top = (self._top[0]-speed, self._top[1])
+        self._bottom = (self._bottom[0]-speed, self._bottom[1])
 
 class Engine:
     def __init__(self, window, player, fps=60) -> None:
@@ -79,15 +97,27 @@ class Engine:
         self._state = "game"
         self._player = player
         self._obstacles = []
+        self.score = 0
+        self._startSpeed = 3
+        self.speed = 3
+        self._startTime = time.time()
 
     def drawPlayer(self):
         self.window.drawImage(self._player._body, self._player.posX, self._player.posY)
+    
+    def updateScore(self):
+        self.score = int((time.time() - self._startTime) * 10 * (self.speed/5))
+        self.window.drawText(str(self.score), 0,0,10,10,False)
+
+    def updateSpeed(self):
+        self.speed = self._startSpeed + (time.time() - self._startTime) /5
     
     def makeObstacle(self):
         xTop = random.randint(self.window._width, self.window._width + 200)
         yTop = random.randint(0, self.window._height)
         xBot = random.randint(self.window._width, self.window._width + 200)
         yBot = random.randint(0, self.window._height)
+        yTop,yBot = min(yTop,yBot), max(yTop, yBot)
 
         if abs(yTop-yBot) <= 50:
              yTop,yBot = min(yTop,yBot)-25, max(yTop, yBot)+25
@@ -98,7 +128,7 @@ class Engine:
         else:
             xBot = self.window._width -1
             
-        self._obstacles.append(Obstacle(15, (xTop, yTop), (xBot,yBot), 5, "laserTexture.png"))
+        self._obstacles.append(Obstacle(15, (xTop, yTop), (xBot,yBot), "laserTexture.png"))
     
     def destroyObstacle(self, obs):
         self._obstacles.remove(obs)
@@ -133,7 +163,7 @@ class Engine:
             for i in range(4):
                 for j in range(i,4):
                     if intersect(playerCorners[i], playerCorners[j], obstacle._top, obstacle._bottom):
-                        pygame.quit()
+                        self._state = 'endScreen'
                         return
     
     def playerMovement(self):
@@ -150,6 +180,29 @@ class Engine:
         #     self._player.move('down')
         # if pressed_keys[pygame.K_d] and self._player.posX < self.window._width - self._player._width: #Right
         #     self._player.move('right')
+    
+    def close(self):
+        self._state = ''
+        pygame.quit()
+
+    def endScreen(self):
+        self._obstacles = []
+        self._player.setPos(0,self.window._height)
+        self.speed = 3
+        self._startTime = time.time()
+
+        while self._state == 'endScreen':
+            self.window.clear()
+            self.window.drawText("Click anywhere to restart",offsetY=-20)
+            self.window.drawText(f"Score: {self.score}",offsetY=20)
+            self.window.update()
+
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEBUTTONUP:
+                    self._state = 'game'
+                    self.score = 0
+                if event.type == pygame.QUIT:
+                    self.close()
 
     def runGame(self):
         timer = time.time()
@@ -159,13 +212,11 @@ class Engine:
         while self._state == "game":
             self._clock.tick(self._fps)
             timer = time.time()
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self._state = "menu"
                 
             # self.window.setBG((255,0,0))
             self.window.clear()
+            self.updateScore()
+            self.updateSpeed()
             self.playerMovement()
             self.checkCollision()
 
@@ -175,18 +226,25 @@ class Engine:
                 self.makeObstacle()
 
             for obstacle in self._obstacles:
-                obstacle.move()
+                obstacle.move(self.speed)
                 self.drawObstacle(obstacle)
+            
+            if self._state == 'endScreen':
+                self.endScreen()
 
             self.drawPlayer()
             self.window.update()
 
-        pygame.quit()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.close()
+
 
 
 # Driver code
 
 def main():
+    pygame.init()
     window = Window(1000,500)
     player = Player(140,60,20,"crab.png")
     game = Engine(window, player)
