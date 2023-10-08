@@ -30,19 +30,27 @@ class Window:
         # pygame.draw.polygon(self._window, 'lightblue', points)
         
 class Player:
-    def __init__(self, h, w, speed, sprite) -> None:
+    def __init__(self, w, h, speed, sprite, gravity=0.4) -> None:
         self._height = h
         self._width = w
-        self.speed = speed
+        self.speed = 0
+        self._maxSpeed = speed
+        self._gravity = gravity
         img = pygame.image.load(os.path.join("Assets",sprite))
-        self._body = pygame.transform.scale(img, (self._height, self._width))
+        self._body = pygame.transform.scale(img, (self._width, self._height))
         self.posX = 0
         self.posY = 0
 
     def move(self, dir):
         if dir == 'up':
-            self.posY -= self.speed
+            print(self.speed)
+            if self.speed > -self._maxSpeed:
+                self.speed -= self._gravity
+            self.posY += self.speed
         elif dir == 'down':
+            print(self.speed, self._gravity)
+            if self.speed < self._maxSpeed:
+                self.speed += self._gravity
             self.posY += self.speed
         elif dir == 'left':
             self.posX -= self.speed
@@ -105,21 +113,34 @@ class Engine:
         except pygame.error:
             self.destroyObstacle(obs)
     
+    def checkCollision(self):
+        if self._player.posY + self._player._height >= self.window._height:
+            self._player.speed = 0
+            self._player.posY = self.window._height - self._player._height
+        elif self._player.posY <= 0:
+            self._player.speed = 0
+            self._player.posY = 0
+    
     def playerMovement(self):
         pressed_keys = pygame.key.get_pressed()
-        if pressed_keys[pygame.K_w]: #Up
+        
+        if pressed_keys[pygame.K_w] and self._player.posY > 0: #Up
             self._player.move('up')
-        if pressed_keys[pygame.K_a]: #Left
-            self._player.move('left')
-        if pressed_keys[pygame.K_s]: #Down
+        else:
             self._player.move('down')
-        if pressed_keys[pygame.K_d]: #Right
-            self._player.move('right')
+            
+        # if pressed_keys[pygame.K_a] and self._player.posX > 0: #Left
+        #     self._player.move('left')
+        # if pressed_keys[pygame.K_s] and self._player.posY < self.window._height - self._player._height: #Down
+        #     self._player.move('down')
+        # if pressed_keys[pygame.K_d] and self._player.posX < self.window._width - self._player._width: #Right
+        #     self._player.move('right')
 
     def runGame(self):
         timer = time.time()
         obsCd = timer
         nextObs = 3
+        self._player.setPos(0, self.window._height-self._player._height)
         while self._state == "game":
             self._clock.tick(self._fps)
             timer = time.time()
@@ -127,9 +148,11 @@ class Engine:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self._state = "menu"
+                
             # self.window.setBG((255,0,0))
             self.window.clear()
             self.playerMovement()
+            self.checkCollision()
 
             if timer-obsCd >= nextObs:
                 obsCd = timer
@@ -150,7 +173,7 @@ class Engine:
 
 def main():
     window = Window(1000,500)
-    player = Player(140,60,5,"crab.png")
+    player = Player(140,60,20,"crab.png")
     game = Engine(window, player)
     game.runGame()
 
