@@ -118,7 +118,6 @@ class Missile:
         initTime = time.time()
         if time.time() - self.spawnTime < 3:
             pos = player.posY
-            print(pos)
 
             if self.y < pos:
                 self.y += self.speed
@@ -126,6 +125,9 @@ class Missile:
                 self.y -= self.speed
         else:
              self.x -= 30
+
+        if time.time() - self.spawnTime >= 15:
+            return 1
 
 class Engine:
     def __init__(self, window, player, fps=60) -> None:
@@ -208,10 +210,14 @@ class Engine:
                          (self._player.posX + self._player._width, self._player.posY + self._player._height)]
 
         for obstacle in self._obstacles:
-            if type(obstacle) == obstacle:
+            if type(obstacle) == Obstacle:
                 for i in range(4):
                     for j in range(i, 4):
                         if intersect(playerCorners[i], playerCorners[j], obstacle._top, obstacle._bottom):
+                            self._state = 'endScreen'
+                            return
+            elif type(obstacle) == Missile:
+                if self._player.posX + self._player._width >= obstacle.x and self._player.posX <= obstacle.x + obstacle.w and  self._player.posY + self._player._height >= obstacle.y and self._player.posY <= obstacle.y + obstacle.h:
                             self._state = 'endScreen'
                             return
 
@@ -257,6 +263,8 @@ class Engine:
         timer = time.time()
         obsCd = timer
         nextObs = 3
+        missCd = timer
+        nextMiss = 6
         self._player.setPos(0, self.window._height - self._player._height)
         while self._state == "game":
             self._clock.tick(self._fps)
@@ -273,6 +281,10 @@ class Engine:
                 obsCd = timer
                 nextObs = 1 + random.random() * 2
                 self.makeObstacle()
+                
+            if timer - missCd >= nextMiss:
+                missCd = timer
+                nextObs = 1 + random.random() * 2
                 self.makeMissile()
 
             for obstacle in self._obstacles:
@@ -281,9 +293,10 @@ class Engine:
                     obstacle.move(self.speed)
                     self.drawObstacle(obstacle)
                 else:
-                    obstacle.move(self._player)
+                    if obstacle.move(self._player):
+                        self.destroyObstacle(obstacle)
                     self.drawMissile(obstacle)
-                    print(obstacle.y)
+
             if self._state == 'endScreen':
                 self.endScreen()
 
